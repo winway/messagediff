@@ -19,7 +19,7 @@ func PrettyDiff(a, b interface{}) (string, bool) {
 		dstr = append(dstr, fmt.Sprintf("removed: %s = %#v\n", path.String(), removed))
 	}
 	for path, modified := range d.Modified {
-		dstr = append(dstr, fmt.Sprintf("modified: %s = %#v\n", path.String(), modified))
+		dstr = append(dstr, fmt.Sprintf("modified: %s = %#v -> %v\n", path.String(), modified[0], modified[1]))
 	}
 	sort.Strings(dstr)
 	return strings.Join(dstr, ""), equal
@@ -35,7 +35,7 @@ func newDiff() *Diff {
 	return &Diff{
 		Added:    make(map[*Path]interface{}),
 		Removed:  make(map[*Path]interface{}),
-		Modified: make(map[*Path]interface{}),
+		Modified: make(map[*Path][]interface{}),
 		visited:  make(map[visit]bool),
 	}
 }
@@ -51,15 +51,15 @@ func (d *Diff) diff(aVal, bVal reflect.Value, path Path) bool {
 		return true
 	}
 	if !bVal.IsValid() {
-		d.Modified[&localPath] = nil
+		d.Modified[&localPath] = []interface{}{aVal.Interface(), nil}
 		return false
 	} else if !aVal.IsValid() {
-		d.Modified[&localPath] = bVal.Interface()
+		d.Modified[&localPath] = []interface{}{nil, bVal.Interface()}
 		return false
 	}
 
 	if aVal.Type() != bVal.Type() {
-		d.Modified[&localPath] = bVal.Interface()
+		d.Modified[&localPath] = []interface{}{aVal.Interface(), bVal.Interface()}
 		return false
 	}
 	kind := aVal.Kind()
@@ -101,7 +101,7 @@ func (d *Diff) diff(aVal, bVal reflect.Value, path Path) bool {
 			return true
 		}
 		if aVal.IsNil() || bVal.IsNil() {
-			d.Modified[&localPath] = bVal.Interface()
+			d.Modified[&localPath] = []interface{}{aVal.Interface(), bVal.Interface()}
 			return false
 		}
 	}
@@ -171,7 +171,7 @@ func (d *Diff) diff(aVal, bVal reflect.Value, path Path) bool {
 		if reflect.DeepEqual(aVal.Interface(), bVal.Interface()) {
 			equal = true
 		} else {
-			d.Modified[&localPath] = bVal.Interface()
+			d.Modified[&localPath] = []interface{}{aVal.Interface(), bVal.Interface()}
 			equal = false
 		}
 	}
@@ -198,7 +198,8 @@ type visit struct {
 
 // Diff represents a change in a struct.
 type Diff struct {
-	Added, Removed, Modified map[*Path]interface{}
+	Added, Removed  map[*Path]interface{}
+	Modified               map[*Path][]interface{}
 	visited                  map[visit]bool
 }
 
